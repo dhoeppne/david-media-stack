@@ -1,173 +1,146 @@
 version: "3"
-
+# a comment
 services:
   vpn:
-    container_name: vpn
-    image: dperson/openvpn-client:latest
+    container_name: media_vpn
+    image: qmcgaw/gluetun:latest
+    networks:
+      - mediastack
     cap_add:
-      - net_admin # required to modify network interfaces
-    restart: unless-stopped
+      - NET_ADMIN # required to modify network interfaces
     volumes:
-      - /dev/net:/dev/net:z # tun device
-      - ${ROOT}/config/vpn:/vpn # OpenVPN configuration
-    security_opt:
-      - label:disable
+      - ${CONFIGROOT}/config/vpn:/gluetun
     ports:
-      - 8112:8112 # port for deluge web UI to be reachable from local network
-    command: "-r 192.168.1.0/24" # route local network traffic
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "5m"
-        max-file: "2"
+      - 1080:1080 # qbittorrent webui
+      - 6881:6881 # qbittorrent download
+      - 6881:6881/udp
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - PUID=${PUID} # default user id, defined in .env
+      - PGID=${PGID} # default group id, defined in .env
+      - TZ=${TZ} # timezone, defined in .env
+      - VPN_SERVICE_PROVIDER=mullvad # mullvad is cheap, private, and uses wireguard (fast)
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=<put your own here>
+      - WIREGUARD_ADDRESSES=<put your own here>
+      - SERVER_CITIES=<put your own here>
 
-  deluge:
-    container_name: deluge
-    image: linuxserver/deluge:latest
-    restart: always
+  qbittorrent:
+    container_name: media_qbittorrent
+    depends_on:
+      - vpn
+    image: linuxserver/qbittorrent:latest
+    restart: unless-stopped
     network_mode: service:vpn # run on the vpn network
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
+      - WEBUI_PORT=1080 # to stop it from conflicting with stuff
     volumes:
-      - ${ROOT}/downloads:/downloads # downloads folder
-      - ${ROOT}/config/deluge:/config # config files
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "5m"
-        max-file: "1"
+      - ${CONFIGROOT}/config/qbittorrent:/config # config files
+      - ${DATAROOT}/downloads:/downloads # downloads folder
 
-  jackett:
-    container_name: jackett
-    image: linuxserver/jackett:latest
+  prowlarr:
+    container_name: media_prowlarr # prowlarr is neat, lets you point sonarr and radarr to it for easy indexers
+    image: lscr.io/linuxserver/prowlarr:develop
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - mediastack
+    ports:
+      - "9696:9696"
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
+      - TZ=${TZ}
+      - UMASK=002
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/downloads/torrent-blackhole:/downloads # place where to put .torrent files for manual download
-      - ${ROOT}/config/jackett:/config # config files
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "1m"
-        max-file: "1"
+      - ${CONFIGROOT}/config/prowlarr:/config
 
   plex-server:
-    container_name: plex-server
-    image: plexinc/pms-docker:latest
+    container_name: media_plex-server
+    image: lscr.io/linuxserver/plex:latest
     restart: unless-stopped
+    ports:
+      - "32400:32400"
     environment:
       - TZ=${TZ} # timezone, defined in .env
-    network_mode: host
+      - PLEX_CLAIM=claim-7yXx-vcsq8LEyTVNKyUD
+      - VERSION=docker
     volumes:
-      - ${ROOT}/config/plex/db:/config # plex database
-      - ${ROOT}/config/plex/transcode:/transcode # temp transcoded files
-      - ${ROOT}/complete:/data # media library
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - ${CONFIGROOT}/config/plex/db:/config # plex database
+      - ${CONFIGROOT}/config/plex/transcode:/transcode # temp transcoded files
+      - ${DATAROOT}/complete/tv:/tv # media library
+      - ${DATAROOT}/complete/movies:/movies
 
   sonarr:
-    container_name: sonarr
+    container_name: media_sonarr
     image: linuxserver/sonarr:latest
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - mediastack
+    ports:
+      - "8989:8989"
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/sonarr:/config # config files
-      - ${ROOT}/complete/tv:/tv # tv shows folder
-      - ${ROOT}/complete/tv_parents:/tv_parents
-      - ${ROOT}/downloads:/downloads # download folder
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "2"
+      - ${CONFIGROOT}/config/sonarr:/config # config files
+      - ${DATAROOT}/complete/tv:/tv # tv shows folder
+      - ${DATAROOT}/downloads:/downloads # download folder
 
   radarr:
-    container_name: radarr
+    container_name: media_radarr
     image: linuxserver/radarr:latest
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "7878:7878"
+    networks:
+      - mediastack
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/radarr:/config # config files
-      - ${ROOT}/complete/movies:/movies # movies folder
-      - ${ROOT}/complete/movies_parents:/movies_parents
-      - ${ROOT}/downloads:/downloads # download folder
-    labels:
-      - "docker-compose-watcher.watch=1"
-      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "2"
+      - ${CONFIGROOT}/config/radarr:/config # config files
+      - ${DATAROOT}/complete/movies:/movies # movies folder
+      - ${DATAROOT}/downloads:/downloads # download folder
 
-#  flaresolverr:
-#    # DockerHub mirror flaresolverr/flaresolverr:latest
-#    image: ghcr.io/flaresolverr/flaresolverr:latest
-#    container_name: flaresolverr
-#    environment:
-#      - LOG_LEVEL=${LOG_LEVEL:-info}
-#      - LOG_HTML=${LOG_HTML:-false}
-#      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
-#      - TZ=Europe/London
-#    ports:
-#      - "${PORT:-8191}:8191"
-#    restart: unless-stopped
+  tautulli:
+    image: ghcr.io/tautulli/tautulli
+    container_name: media_tautulli
+    restart: unless-stopped
+    networks:
+      - mediastack
+    volumes:
+      - ${CONFIGROOT}/config/tautulli:/config
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - "8181:8181"
 
-#  mylar:
-#    container_name: mylar3
-#    image: ghcr.io/linuxserver/mylar3
-#    environment:
-#      - TZ=${TZ}
-#      - PUID=1000
-#      - PGID=1000
-#    volumes:
-#      - ${ROOT}/config/mylar:/config
-#      - ${ROOT}/complete/comics:/comics
-#      - ${ROOT}/downloads:/downloads
-#    restart: unless-stopped
-#    network_mode: host
-#    labels:
-#      - "docker-compose-watcher.watch=1"
-#      - "docker-compose-watcher.dir=/mnt/user/appdata/mediastack"
+  overseerr: # this is request.davidhoeppner.ca
+    container_name: media_overseerr
+    image: sctx/overseerr:latest
+    networks:
+      - mediastack
+      - wanfacing
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${CONFIGROOT}/config/overseer:/app/config
+    restart: unless-stopped
 
-#  organizr:
-#    image: organizr/organizr
-#    container_name: organizr
-#    environment:
-#      - PUID=${PUID}
-#      - PGID=${PGID}
-#      - TZ=${TZ}
-#    volumes:
-#      - ${ROOT}:/config
-  #  ports:
- #     - 9983:80
-#    restart: unless-stopped
+networks:
+  mediastack:
+  wanfacing:
+    external: true
