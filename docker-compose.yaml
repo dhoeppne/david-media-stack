@@ -22,8 +22,8 @@ services:
       - TZ=${TZ} # timezone, defined in .env
       - VPN_SERVICE_PROVIDER=mullvad # mullvad is cheap, private, and uses wireguard (fast)
       - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=<put your own here>
-      - WIREGUARD_ADDRESSES=<put your own here>
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS}
       - SERVER_CITIES=<put your own here>
 
   qbittorrent:
