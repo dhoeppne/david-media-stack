@@ -24,7 +24,7 @@ services:
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
       - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS}
-      - SERVER_CITIES=<put your own here>
+      - SERVER_CITIES=Vancouver
 
   qbittorrent:
     container_name: media_qbittorrent
