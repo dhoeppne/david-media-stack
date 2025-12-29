@@ -35,3 +35,6 @@ The first time you run the docker-compose, you'll have a directory set up for yo
 1. The `WIREGUARD_PRIVATE_KEY`, which is the `PrivateKey` found in the Mullvad config file downloaded as part of creating your wireguard setup.
 1. The `WIREGUARD_ADDRESSES`, which is the `Address` found in the Mullvad config file downloaded as part of creating your wireguard setup. It should follow the format `x.x.x.x/32`.
 1. The `SERVER_CITIES`. In my case (at time of writing) it is `San Jose CA`. You can find all available options [here](https://github.com/qdm12/gluetun/wiki/Mullvad-servers)
+
+## For the Future
+how to re-claim a plex account: https://github.com/linuxserver/docker-plex/issues/282#issuecomment-1141890033
