@@ -1,4 +1,3 @@
-version: "3"
 # a comment
 services:
   vpn:
@@ -42,6 +41,42 @@ services:
       - ${CONFIGROOT}/config/qbittorrent:/config # config files
       - ${DATAROOT}/downloads:/downloads # downloads folder
 
+  reclaimerr:
+    container_name: media_reclaimerr
+    networks:
+      - mediastack
+    image: ghcr.io/jessielw/reclaimerr:latest
+    restart: unless-stopped
+    volumes:
+      - ${CONFIGROOT}/config/reclaimerr:/app/data
+    ports:
+      - "8249:8000"
+
+  rangarr:
+    image: judochinx/rangarr:latest
+    container_name: media_rangarr
+    hostname: rangarr
+    restart: unless-stopped
+    environment:
+      TZ: TZ=${TZ} # Set your timezone for log timestamps (e.g. America/New_York). Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      LOG_LEVEL: INFO # Use DEBUG for verbose logging
+    volumes:
+      - ${CONFIGROOT}/config/rangarr/config.yaml:/app/config/config.yaml:ro
+    networks:
+      - mediastack
+
+  cinerr:
+    image: alexkouzel/cinerr:latest
+    container_name: media_cinerr
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${DATAROOT}:/media:ro
+      - ${CONFIGROOT}/config/cinerr:/data
+    restart: unless-stopped
+    networks:
+      - mediastack
+
   prowlarr:
     container_name: media_prowlarr # prowlarr is neat, lets you point sonarr and radarr to it for easy indexers
     image: lscr.io/linuxserver/prowlarr:develop
@@ -58,23 +93,25 @@ services:
     volumes:
       - ${CONFIGROOT}/config/prowlarr:/config
 
-  plex-server:
-    container_name: media_plex-server
-    image: lscr.io/linuxserver/plex:latest
-    restart: unless-stopped
-    ports:
-      - "32400:32400"
-    environment:
-      - TZ=${TZ} # timezone, defined in .env
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - PLEX_CLAIM=${PLEX_CLAIM}
-      - VERSION=docker
-    volumes:
-      - ${CONFIGROOT}/config/plex/db:/config # plex database
-      - ${CONFIGROOT}/config/plex/transcode:/transcode # temp transcoded files
-      - ${DATAROOT}/complete/tv:/tv # media library
-      - ${DATAROOT}/complete/movies:/movies
+  # uncomment this section if you want to run Plex as part of this stack
+  # I run mine on a separate server, and so don't use it here.
+  # plex-server:
+  #   container_name: media_plex-server
+  #   image: lscr.io/linuxserver/plex:latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "32400:32400"
+  #   environment:
+  #     - TZ=${TZ} # timezone, defined in .env
+  #     - PUID=${PUID} # default user id, defined in .env
+  #     - PGID=${PGID} # default group id, defined in .env
+  #     - PLEX_CLAIM=${PLEX_CLAIM}
+  #     - VERSION=docker
+  #   volumes:
+  #     - ${CONFIGROOT}/config/plex/db:/config # plex database
+  #     - ${CONFIGROOT}/config/plex/transcode:/transcode # temp transcoded files
+  #     - ${DATAROOT}/complete/tv:/tv # media library
+  #     - ${DATAROOT}/complete/movies:/movies
 
   sonarr:
     container_name: media_sonarr
@@ -112,30 +149,22 @@ services:
       - ${DATAROOT}/complete/movies:/movies # movies folder
       - ${DATAROOT}/downloads:/downloads # download folder
 
-  tautulli:
-    image: ghcr.io/tautulli/tautulli
-    container_name: media_tautulli
-    restart: unless-stopped
-    networks:
-      - mediastack
-    volumes:
-      - ${CONFIGROOT}/config/tautulli:/config
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-    ports:
-      - "8181:8181"
-
-  overseerr: # this is request.davidhoeppner.ca
-    container_name: media_overseerr
-    image: sctx/overseerr:latest
+  seerr: # this is request.davidhoeppner.ca
+    container_name: media_seerr
+    image: sctx/seerr:latest
+    init: true
     networks:
       - mediastack
       - wanfacing
     environment:
       - LOG_LEVEL=info
       - TZ=${TZ}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
     ports:
       - "5055:5055"
     volumes:
