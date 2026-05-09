@@ -1,0 +1,141 @@
+services:
+  sonarr:
+    container_name: media_sonarr
+    image: linuxserver/sonarr:latest
+    restart: unless-stopped
+    networks:
+      - mediastack
+    ports:
+      - "8989:8989"
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIGROOT}/sonarr:/config
+      - nas-data:/data
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  radarr:
+    container_name: media_radarr
+    image: linuxserver/radarr:latest
+    restart: unless-stopped
+    networks:
+      - mediastack
+    ports:
+      - "7878:7878"
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIGROOT}/radarr:/config
+      - nas-data:/data
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  prowlarr:
+    container_name: media_prowlarr
+    image: lscr.io/linuxserver/prowlarr:develop
+    restart: unless-stopped
+    networks:
+      - mediastack
+    ports:
+      - "9696:9696"
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - UMASK=002
+    volumes:
+      - ${CONFIGROOT}/prowlarr:/config
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  seerr:
+    container_name: media_seerr
+    image: sctx/seerr:latest
+    init: true
+    networks:
+      - mediastack
+      - wanfacing
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${CONFIGROOT}/overseer:/app/config
+    restart: unless-stopped
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  reclaimerr:
+    container_name: media_reclaimerr
+    networks:
+      - mediastack
+    image: ghcr.io/jessielw/reclaimerr:latest
+    restart: unless-stopped
+    volumes:
+      - ${CONFIGROOT}/reclaimerr:/app/data
+    ports:
+      - "8249:8000"
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  rangarr:
+    image: judochinx/rangarr:latest
+    container_name: media_rangarr
+    hostname: rangarr
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: INFO
+    volumes:
+      - ${CONFIGROOT}/rangarr/config.yaml:/app/config/config.yaml:ro
+    networks:
+      - mediastack
+    labels:
+      - "arcane.stack.auto-update=true"
+
+  cinerr:
+    image: alexkouzel/cinerr:latest
+    container_name: media_cinerr
+    ports:
+      - "8080:8080"
+    volumes:
+      - nas-data-media:/media:ro
+      - ${CONFIGROOT}/cinerr:/data
+    restart: unless-stopped
+    networks:
+      - mediastack
+    labels:
+      - "arcane.stack.auto-update=true"
+
+volumes:
+  nas-data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=4,rw,nolock,soft,intr,timeo=300"
+      device: ":${NAS_NFS_PATH}"
+  nas-data-media:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=4,ro,nolock,soft,intr,timeo=300"
+      device: ":${NAS_NFS_PATH}/media"
+
+networks:
+  mediastack:
+  wanfacing:
+    external: true
