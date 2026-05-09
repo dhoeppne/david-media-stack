@@ -96,6 +96,8 @@ services:
     container_name: media_rangarr
     hostname: rangarr
     restart: unless-stopped
+    ports:
+      - "6767:7878"
     environment:
       TZ: ${TZ}
       LOG_LEVEL: INFO
