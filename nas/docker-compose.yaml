@@ -1,0 +1,63 @@
+services:
+  vpn:
+    container_name: media_vpn
+    image: qmcgaw/gluetun:latest
+    networks:
+      - mediastack
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ${CONFIGROOT}/vpn:/gluetun
+    ports:
+      - 1080:1080
+      - 6881:6881
+      - 6881:6881/udp
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS}
+      - SERVER_CITIES=${SERVER_CITIES}
+
+  qbittorrent:
+    container_name: media_qbittorrent
+    depends_on:
+      - vpn
+    image: linuxserver/qbittorrent:latest
+    restart: unless-stopped
+    network_mode: service:vpn
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - WEBUI_PORT=1080
+    volumes:
+      - ${CONFIGROOT}/qbittorrent:/config
+      - ${DATAROOT}/torrents:/data/torrents
+
+  plex-server:
+    container_name: media_plex-server
+    image: lscr.io/linuxserver/plex:latest
+    restart: unless-stopped
+    networks:
+      - mediastack
+    ports:
+      - "32400:32400"
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - PLEX_CLAIM=${PLEX_CLAIM}
+      - VERSION=docker
+    volumes:
+      - ${CONFIGROOT}/plex/db:/config
+      - ${CONFIGROOT}/plex/transcode:/transcode
+      - ${DATAROOT}/media:/data/media
+
+networks:
+  mediastack:

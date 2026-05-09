@@ -1,64 +1,4 @@
 services:
-  vpn:
-    container_name: media_vpn
-    image: qmcgaw/gluetun:latest
-    networks:
-      - mediastack
-    cap_add:
-      - NET_ADMIN
-    volumes:
-      - ${CONFIGROOT}/vpn:/gluetun
-    ports:
-      - 1080:1080
-      - 6881:6881
-      - 6881:6881/udp
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - VPN_SERVICE_PROVIDER=mullvad
-      - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
-      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS}
-      - SERVER_CITIES=${SERVER_CITIES}
-
-  qbittorrent:
-    container_name: media_qbittorrent
-    depends_on:
-      - vpn
-    image: linuxserver/qbittorrent:latest
-    restart: unless-stopped
-    network_mode: service:vpn
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - WEBUI_PORT=1080
-    volumes:
-      - ${CONFIGROOT}/qbittorrent:/config
-      - ${DATAROOT}/torrents:/data/torrents
-
-  plex-server:
-    container_name: media_plex-server
-    image: lscr.io/linuxserver/plex:latest
-    restart: unless-stopped
-    networks:
-      - mediastack
-    ports:
-      - "32400:32400"
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - PLEX_CLAIM=${PLEX_CLAIM}
-      - VERSION=docker
-    volumes:
-      - ${CONFIGROOT}/plex/db:/config
-      - ${CONFIGROOT}/plex/transcode:/transcode
-      - ${DATAROOT}/media:/data/media
-
   sonarr:
     container_name: media_sonarr
     image: linuxserver/sonarr:latest
@@ -74,7 +14,9 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIGROOT}/sonarr:/config
-      - ${DATAROOT}:/data
+      - nas-data:/data
+    labels:
+      - "arcane.stack.auto-update=true"
 
   radarr:
     container_name: media_radarr
@@ -91,7 +33,9 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIGROOT}/radarr:/config
-      - ${DATAROOT}:/data
+      - nas-data:/data
+    labels:
+      - "arcane.stack.auto-update=true"
 
   prowlarr:
     container_name: media_prowlarr
@@ -108,6 +52,8 @@ services:
       - UMASK=002
     volumes:
       - ${CONFIGROOT}/prowlarr:/config
+    labels:
+      - "arcane.stack.auto-update=true"
 
   seerr:
     container_name: media_seerr
@@ -130,6 +76,8 @@ services:
     volumes:
       - ${CONFIGROOT}/overseer:/app/config
     restart: unless-stopped
+    labels:
+      - "arcane.stack.auto-update=true"
 
   reclaimerr:
     container_name: media_reclaimerr
@@ -141,6 +89,8 @@ services:
       - ${CONFIGROOT}/reclaimerr:/app/data
     ports:
       - "8249:8000"
+    labels:
+      - "arcane.stack.auto-update=true"
 
   rangarr:
     image: judochinx/rangarr:latest
@@ -154,6 +104,8 @@ services:
       - ${CONFIGROOT}/rangarr/config.yaml:/app/config/config.yaml:ro
     networks:
       - mediastack
+    labels:
+      - "arcane.stack.auto-update=true"
 
   cinerr:
     image: alexkouzel/cinerr:latest
@@ -161,11 +113,27 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ${DATAROOT}/media:/media:ro
+      - nas-data-media:/media:ro
       - ${CONFIGROOT}/cinerr:/data
     restart: unless-stopped
     networks:
       - mediastack
+    labels:
+      - "arcane.stack.auto-update=true"
+
+volumes:
+  nas-data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=4,rw,nolock,soft,intr,timeo=300"
+      device: ":${NAS_NFS_PATH}"
+  nas-data-media:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=4,ro,nolock,soft,intr,timeo=300"
+      device: ":${NAS_NFS_PATH}/media"
 
 networks:
   mediastack:
