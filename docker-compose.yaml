@@ -155,6 +155,18 @@ services:
     networks:
       - mediastack
 
+  killarr:
+    image: judochinx/killarr:latest
+    container_name: media_killarr
+    restart: unless-stopped
+    volumes:
+      # Mount the same config.yaml you use for rangarr (or a dedicated one)
+      - ${CONFIGROOT}/rangarr/config.yaml:/app/config/config.yaml:ro
+    environment:
+      - LOG_LEVEL=INFO
+    networks:
+      - mediastack
+
   cinerr:
     image: alexkouzel/cinerr:latest
     container_name: media_cinerr
