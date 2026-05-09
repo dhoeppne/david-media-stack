@@ -57,7 +57,7 @@ services:
 
   seerr:
     container_name: media_seerr
-    image: sctx/seerr:latest
+    image: ghcr.io/seerr-team/seerr:latest
     init: true
     networks:
       - mediastack
