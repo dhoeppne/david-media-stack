@@ -139,13 +139,13 @@ volumes:
     driver: local
     driver_opts:
       type: "nfs"
-      o: "addr=${NAS_IP},nfsvers=4,rw,nolock,soft,intr,timeo=300"
+      o: "addr=${NAS_IP},rw,nolock,soft,intr,timeo=300"
       device: ":${NAS_NFS_PATH}"
   nas-data-media:
     driver: local
     driver_opts:
       type: "nfs"
-      o: "addr=${NAS_IP},nfsvers=4,ro,nolock,soft,intr,timeo=300"
+      o: "addr=${NAS_IP},ro,nolock,soft,intr,timeo=300"
       device: ":${NAS_NFS_PATH}/media"
 
 networks:
