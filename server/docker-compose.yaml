@@ -164,7 +164,7 @@ services:
       - ${CONFIGROOT}/tdarr/logs:/app/logs
       # Media must be mounted at the SAME container path on server + both
       # nodes, since the server stores paths and nodes resolve them locally.
-      - nas-data-media:/media
+      - nas-data:/media
       - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
 
   # ---------------------------------------------------------------------
@@ -190,7 +190,7 @@ services:
     volumes:
       - ${CONFIGROOT}/tdarr/configs:/app/configs
       - ${CONFIGROOT}/tdarr/logs:/app/logs
-      - nas-data-media:/media
+      - nas-data:/media
       - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
     depends_on:
       - tdarr-server
@@ -221,7 +221,7 @@ services:
     volumes:
       - ${CONFIGROOT}/tdarr/configs:/app/configs
       - ${CONFIGROOT}/tdarr/logs:/app/logs
-      - nas-data-media:/media
+      - nas-data:/media
       - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
     depends_on:
       - tdarr-server
