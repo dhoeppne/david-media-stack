@@ -134,6 +134,95 @@ services:
     labels:
       - "arcane.stack.auto-update=true"
 
+  # ---------------------------------------------------------------------
+  # Tdarr Server + WebUI. No internal node — both transcode pools below
+  # are separate node containers so the server stays light and dedicated.
+  # ---------------------------------------------------------------------
+  tdarr-server:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr-server
+    restart: unless-stopped
+    network_mode: bridge
+    ports:
+      - "8265:8265" # WebUI
+      - "8266:8266" # Server <-> Node comms
+    environment:
+      - TZ=America/Vancouver
+      - PUID=1000 # match your Hyperion docker user — adjust if different
+      - PGID=1000
+      - UMASK_SET=002
+      - serverIP=0.0.0.0
+      - serverPort=8266
+      - webUIPort=8265
+      - internalNode=false
+      - ffmpegVersion=7
+      - auth=false # consider true + Authentik forward-auth on the NPM proxy host instead
+    volumes:
+      - ${CONFIGROOT}/tdarr/server:/app/server
+      - ${CONFIGROOT}/tdarr/configs:/app/configs
+      - ${CONFIGROOT}/tdarr/logs:/app/logs
+      # Media must be mounted at the SAME container path on server + both
+      # nodes, since the server stores paths and nodes resolve them locally.
+      - nas-data-media:/media
+      - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
+
+  # ---------------------------------------------------------------------
+  # Always-on CPU pool. Software x265, 8 concurrent transcode workers.
+  # Runs 24/7 — this is your steady-state throughput.
+  # ---------------------------------------------------------------------
+  tdarr-node-cpu:
+    image: ghcr.io/haveagitgat/tdarr_node:latest
+    container_name: tdarr-node-cpu
+    restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - TZ=America/Vancouver
+      - PUID=1000
+      - PGID=1000
+      - UMASK_SET=002
+      - nodeName=hyperion-cpu
+      - serverIP=tdarr-server # resolves via Docker's embedded DNS if on same custom network — see note below
+      - serverPort=8266
+      - inContainer=true
+      - ffmpegVersion=7
+    volumes:
+      - ${CONFIGROOT}/tdarr/configs:/app/configs
+      - ${CONFIGROOT}/tdarr/logs:/app/logs
+      - nas-data-media:/media
+      - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
+    depends_on:
+      - tdarr-server
+
+  # ---------------------------------------------------------------------
+  # GPU pool. QSV hardware x265 via the Arc A380. Container runs all the
+  # time (cheap when idle), but you cap its worker count to 0 outside
+  # 2am-6am using Tdarr's own scheduler in the WebUI — see setup notes.
+  # ---------------------------------------------------------------------
+  tdarr-node-gpu:
+    image: ghcr.io/haveagitgat/tdarr_node:latest
+    container_name: tdarr-node-gpu
+    restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - TZ=America/Vancouver
+      - PUID=1000
+      - PGID=1000
+      - UMASK_SET=002
+      - nodeName=hyperion-gpu
+      - serverIP=tdarr-server
+      - serverPort=8266
+      - inContainer=true
+      - ffmpegVersion=7
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${CONFIGROOT}/tdarr/configs:/app/configs
+      - ${CONFIGROOT}/tdarr/logs:/app/logs
+      - nas-data-media:/media
+      - /mnt/hyperion_share_fast/tdarr/transcode_cache:/temp
+    depends_on:
+      - tdarr-server
+
 volumes:
   nas-data:
     driver: local
@@ -150,3 +239,4 @@ volumes:
 
 networks:
   mediastack:
+  tdarr-net:
