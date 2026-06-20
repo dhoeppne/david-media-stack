@@ -142,6 +142,8 @@ services:
     image: ghcr.io/haveagitgat/tdarr:latest
     container_name: tdarr-server
     restart: unless-stopped
+    networks:
+      - tdarr-net
     ports:
       - "8265:8265" # WebUI
       - "8266:8266" # Server <-> Node comms
@@ -173,6 +175,8 @@ services:
     image: ghcr.io/haveagitgat/tdarr_node:latest
     container_name: tdarr-node-cpu
     restart: unless-stopped
+    networks:
+      - tdarr-net
     environment:
       - TZ=America/Vancouver
       - PUID=1000
@@ -200,6 +204,8 @@ services:
     image: ghcr.io/haveagitgat/tdarr_node:latest
     container_name: tdarr-node-gpu
     restart: unless-stopped
+    networks:
+      - tdarr-net
     environment:
       - TZ=America/Vancouver
       - PUID=1000
@@ -236,3 +242,4 @@ volumes:
 
 networks:
   mediastack:
+  tdarr-net:
