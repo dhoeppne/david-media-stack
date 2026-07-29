@@ -10,19 +10,23 @@ services:
       - ${CONFIGROOT}/vpn:/gluetun
     ports:
       - 1080:1080
-      - 6881:6881
-      - 6881:6881/udp
+      - 6883:6883
+      - 6883:6883/udp
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
       - TZ=${TZ}
       - PUID=${PUID}
       - PGID=${PGID}
-      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
-      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS}
-      - SERVER_CITIES=${SERVER_CITIES}
+      - SERVER_COUNTRIES=Canada
+      - SERVER_CITIES=Vancouver
+      - PORT_FORWARD_ONLY=on
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://vpn:1080/api/v2/app/setPreferences'
+      - VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http:/vpn:1080/api/v2/app/setPreferences'
 
   qbittorrent:
     container_name: media_qbittorrent
@@ -47,7 +51,7 @@ services:
     networks:
       - mediastack
     ports:
-      - "32400:32400"
+      - 32400:32400
     environment:
       - TZ=${TZ}
       - PUID=${PUID}
