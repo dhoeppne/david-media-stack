@@ -2,6 +2,7 @@ services:
   vpn:
     container_name: media_vpn
     image: qmcgaw/gluetun:latest
+    restart: unless-stopped
     networks:
       - mediastack
     cap_add:
@@ -16,8 +17,6 @@ services:
       - /dev/net/tun:/dev/net/tun
     environment:
       - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
       - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_KEY}
@@ -25,13 +24,18 @@ services:
       - SERVER_CITIES=Vancouver
       - PORT_FORWARD_ONLY=on
       - VPN_PORT_FORWARDING=on
-      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://vpn:1080/api/v2/app/setPreferences'
-      - VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http:/vpn:1080/api/v2/app/setPreferences'
+      # Retry loop: up to 60 attempts x 5s = 5 minutes for qbittorrent's WebUI
+      # to come up before giving up. Targets 127.0.0.1 because qbittorrent
+      # shares this container's network namespace. Shell $ signs are doubled
+      # ($$) so compose doesn't interpolate them.
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c 'i=0; while [ $$i -lt 60 ]; do wget -O- -nv --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:1080/api/v2/app/setPreferences 2>&1 && exit 0; i=$$((i+1)); sleep 5; done; echo "port update failed after 5 minutes"; exit 1'
+      - VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c 'wget -O- -nv -t 3 --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http://127.0.0.1:1080/api/v2/app/setPreferences 2>&1'
 
   qbittorrent:
     container_name: media_qbittorrent
     depends_on:
-      - vpn
+      vpn:
+        condition: service_healthy
     image: linuxserver/qbittorrent:latest
     restart: unless-stopped
     network_mode: service:vpn
@@ -43,6 +47,26 @@ services:
     volumes:
       - ${CONFIGROOT}/qbittorrent:/config
       - ${DATAROOT}/torrents:/data/torrents
+    # Detects namespace orphaning: if gluetun restarts/recreates, this
+    # container silently loses all connectivity and this check fails.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-m", "10", "https://1.1.1.1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 180s
+    labels:
+      - deunhealth.restart.on.unhealthy=true
+
+  deunhealth:
+    container_name: media_deunhealth
+    image: qmcgaw/deunhealth
+    restart: unless-stopped
+    network_mode: "none"
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   plex-server:
     container_name: media_plex-server
